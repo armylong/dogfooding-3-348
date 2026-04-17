@@ -6,8 +6,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     canvas.addEventListener('click', (event) => {
         const rect = canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+        // 计算CSS显示尺寸与canvas实际像素尺寸的比例
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        // 将鼠标坐标映射到canvas内部坐标
+        const x = (event.clientX - rect.left) * scaleX;
+        const y = (event.clientY - rect.top) * scaleY;
         game.handleClick(x, y);
     });
 
