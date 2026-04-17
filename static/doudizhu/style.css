@@ -5,14 +5,21 @@
 }
 
 body {
-    background: #1a1a2e;
-    min-height: 100vh;
+    background: #1a5f3c;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
 }
 
 #gameCanvas {
     display: block;
+    width: 100vmin;
+    height: 70vmin;
+    max-width: 100vw;
+    max-height: 70vh;
+    object-fit: contain;
+    image-rendering: crisp-edges;
 }

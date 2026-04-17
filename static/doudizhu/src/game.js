@@ -270,6 +270,12 @@ export class Game {
         return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
     }
 
+    _isTeammate(playerIndex1, playerIndex2) {
+        const player1 = this.players[playerIndex1];
+        const player2 = this.players[playerIndex2];
+        return (!player1.isLandlord && !player2.isLandlord);
+    }
+
     playSelected() {
         if (this.state !== GAME_STATES.PLAYING || this.players[this.currentIndex].isAI) return;
         if (this.selectedCards.length === 0) return;
@@ -283,6 +289,9 @@ export class Game {
         }
 
         if (this.lastPlay && this.lastPlayPlayer !== this.currentIndex) {
+            if (this._isTeammate(this.currentIndex, this.lastPlayPlayer)) {
+                return;
+            }
             if (!CardValidator.canBeat(cards, type, this.lastPlay, this.lastPlayType)) {
                 return;
             }
@@ -364,32 +373,59 @@ export class Game {
             return this._findSmallestPlay(cards);
         }
 
+        if (this._isTeammate(this.currentIndex, this.lastPlayPlayer)) {
+            return null;
+        }
+
         return this._findBeatingPlay(cards, this.lastPlay, this.lastPlayType);
     }
 
     _findSmallestPlay(cards) {
         const counts = this._getCardCounts(cards);
         
-        const singles = cards.filter(c => counts[c.value] === 1);
-        if (singles.length > 0) {
-            return [singles[0]];
-        }
+        const values = Object.keys(counts).map(Number).sort((a, b) => a - b);
         
-        for (const card of cards) {
-            if (counts[card.value] >= 2) {
-                const pair = cards.filter(c => c.value === card.value).slice(0, 2);
-                return pair;
-            }
-        }
-        
-        for (const card of cards) {
-            if (counts[card.value] >= 3) {
-                const triple = cards.filter(c => c.value === card.value).slice(0, 3);
+        for (const v of values) {
+            if (counts[v] >= 3) {
+                const triple = cards.filter(c => c.value === v).slice(0, 3);
+                
+                for (const kickerV of values) {
+                    if (kickerV !== v && counts[kickerV] >= 2) {
+                        const pair = cards.filter(c => c.value === kickerV).slice(0, 2);
+                        return [...triple, ...pair];
+                    }
+                }
+                
+                for (const kickerV of values) {
+                    if (kickerV !== v) {
+                        const kicker = cards.find(c => c.value === kickerV);
+                        if (kicker) {
+                            return [...triple, kicker];
+                        }
+                    }
+                }
+                
                 return triple;
             }
         }
         
-        return [cards[0]];
+        const straight = this._findStraight(cards, 5, 0);
+        if (straight) {
+            return straight;
+        }
+        
+        const straightPair = this._findStraightPair(cards, 3, 0);
+        if (straightPair) {
+            return straightPair;
+        }
+        
+        for (const v of values) {
+            if (counts[v] >= 2) {
+                return cards.filter(c => c.value === v).slice(0, 2);
+            }
+        }
+        
+        return [cards.find(c => c.value === values[0])];
     }
 
     _findBeatingPlay(cards, lastPlay, lastType) {
@@ -456,19 +492,71 @@ export class Game {
             if (straightPair) return straightPair;
         }
         
-        for (const card of cards) {
-            if (counts[card.value] === 4) {
-                return cards.filter(c => c.value === card.value);
+        if (lastType.type === CARD_TYPES.BOMB || lastType.type === CARD_TYPES.ROCKET) {
+            for (const card of cards) {
+                if (counts[card.value] === 4 && card.value > lastValue) {
+                    return cards.filter(c => c.value === card.value);
+                }
+            }
+            const hasSmallJoker = cards.some(c => c.value === 16);
+            const hasBigJoker = cards.some(c => c.value === 17);
+            if (hasSmallJoker && hasBigJoker && lastType.type !== CARD_TYPES.ROCKET) {
+                return cards.filter(c => c.value === 16 || c.value === 17);
+            }
+            return null;
+        }
+        
+        if (this._shouldUseBomb()) {
+            for (const card of cards) {
+                if (counts[card.value] === 4) {
+                    return cards.filter(c => c.value === card.value);
+                }
+            }
+            
+            const hasSmallJoker = cards.some(c => c.value === 16);
+            const hasBigJoker = cards.some(c => c.value === 17);
+            if (hasSmallJoker && hasBigJoker) {
+                return cards.filter(c => c.value === 16 || c.value === 17);
             }
         }
         
-        const hasSmallJoker = cards.some(c => c.value === 16);
-        const hasBigJoker = cards.some(c => c.value === 17);
-        if (hasSmallJoker && hasBigJoker) {
-            return cards.filter(c => c.value === 16 || c.value === 17);
+        return null;
+    }
+
+    _shouldUseBomb() {
+        const currentPlayer = this.players[this.currentIndex];
+        const lastPlayer = this.players[this.lastPlayPlayer];
+        
+        if (lastPlayer.isLandlord && lastPlayer.cards.length <= 4) {
+            return true;
         }
         
-        return null;
+        const teammateIndex = this._getTeammateIndex(this.currentIndex);
+        if (teammateIndex >= 0) {
+            const teammate = this.players[teammateIndex];
+            if (teammate.cards.length <= 3) {
+                return true;
+            }
+        }
+        
+        if (currentPlayer.cards.length <= 6) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    _getTeammateIndex(playerIndex) {
+        const player = this.players[playerIndex];
+        if (player.isLandlord) {
+            return -1;
+        }
+        for (let i = 0; i < this.players.length; i++) {
+            if (i !== playerIndex && !this.players[i].isLandlord) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     _getCardCounts(cards) {
