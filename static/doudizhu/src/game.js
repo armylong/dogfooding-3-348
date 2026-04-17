@@ -4,6 +4,9 @@ import { Renderer } from './renderer.js';
 import { CardValidator } from './validator.js';
 import { COLORS, GAME_STATES, CARD_WIDTH, CARD_HEIGHT, CARD_OVERLAP, CARD_TYPES } from './config.js';
 
+const BASE_WIDTH = 1000;
+const BASE_HEIGHT = 700;
+
 export class Game {
     constructor(canvas) {
         this.canvas = canvas;
@@ -23,14 +26,29 @@ export class Game {
         this.highestBidder = -1;
         this.bidRound = 0;
         this.startBidder = 0;
+        this.scale = 1;
 
         this._init();
+        this._setupResizeHandler();
     }
 
     _init() {
-        this.canvas.width = 1000;
-        this.canvas.height = 700;
+        this._resizeCanvas();
         this._render();
+    }
+
+    _resizeCanvas() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.scale = Math.min(this.canvas.width / BASE_WIDTH, this.canvas.height / BASE_HEIGHT);
+        this.renderer.setScale(this.scale);
+    }
+
+    _setupResizeHandler() {
+        window.addEventListener('resize', () => {
+            this._resizeCanvas();
+            this._render();
+        });
     }
 
     start() {
@@ -42,10 +60,12 @@ export class Game {
             new Player(2, '电脑2', true)
         ];
 
+        // 发牌：每人17张，共51张（斗地主标准规则：54张牌，每人17张，底牌3张）
         for (let i = 0; i < 51; i++) {
             this.players[i % 3].addCard(this.deck.deal());
         }
 
+        // 底牌3张，归地主所有
         this.bottomCards = [this.deck.deal(), this.deck.deal(), this.deck.deal()];
 
         for (const player of this.players) {
@@ -198,26 +218,36 @@ export class Game {
         }
     }
 
+    _screenToBase(x, y) {
+        const baseX = (x - this.renderer.offsetX) / this.scale;
+        const baseY = (y - this.renderer.offsetY) / this.scale;
+        return { x: baseX, y: baseY };
+    }
+
     handleClick(x, y) {
+        const base = this._screenToBase(x, y);
+        const bx = base.x;
+        const by = base.y;
+
         if (this.state === GAME_STATES.WAITING) {
-            if (this._isButtonClicked(x, y, this.canvas.width / 2 - 60, this.canvas.height / 2 - 20, 120, 40)) {
+            if (this._isButtonClicked(bx, by, BASE_WIDTH / 2 - 60, BASE_HEIGHT / 2 - 20, 120, 40)) {
                 this.start();
             }
             return;
         }
 
         if (this.state === GAME_STATES.BIDDING && !this.players[this.currentIndex].isAI) {
-            const buttonY = this.canvas.height / 2 - 20;
+            const buttonY = BASE_HEIGHT / 2 - 20;
             const buttonWidth = 80;
             const buttonHeight = 40;
             const totalWidth = this.highestBid === 0 ? 320 : 240;
-            const startX = this.canvas.width / 2 - totalWidth / 2;
+            const startX = BASE_WIDTH / 2 - totalWidth / 2;
             
             if (this.highestBid < 3) {
                 let btnIndex = 0;
                 for (let bid = this.highestBid + 1; bid <= 3; bid++) {
                     const btnX = startX + btnIndex * (buttonWidth + 10);
-                    if (this._isButtonClicked(x, y, btnX, buttonY, buttonWidth, buttonHeight)) {
+                    if (this._isButtonClicked(bx, by, btnX, buttonY, buttonWidth, buttonHeight)) {
                         this._makeBid(this.currentIndex, bid);
                         return;
                     }
@@ -226,7 +256,7 @@ export class Game {
             }
             
             const passX = startX + (this.highestBid === 0 ? 3 : 2) * (buttonWidth + 10);
-            if (this._isButtonClicked(x, y, passX, buttonY, buttonWidth, buttonHeight)) {
+            if (this._isButtonClicked(bx, by, passX, buttonY, buttonWidth, buttonHeight)) {
                 this._passBid(this.currentIndex);
             }
             return;
@@ -234,14 +264,14 @@ export class Game {
 
         if (this.state === GAME_STATES.PLAYING && !this.players[this.currentIndex].isAI) {
             const player = this.players[0];
-            const startX = this.canvas.width / 2 - (player.cards.length * CARD_OVERLAP) / 2;
+            const startX = BASE_WIDTH / 2 - (player.cards.length * CARD_OVERLAP) / 2;
 
             for (let i = player.cards.length - 1; i >= 0; i--) {
                 const cardX = startX + i * CARD_OVERLAP;
-                const cardY = this.canvas.height - CARD_HEIGHT - 80;
+                const cardY = BASE_HEIGHT - CARD_HEIGHT - 80;
                 const isSelected = this.selectedCards.includes(i);
 
-                if (x >= cardX && x <= cardX + CARD_WIDTH && y >= cardY - (isSelected ? 20 : 0) && y <= cardY + CARD_HEIGHT) {
+                if (bx >= cardX && bx <= cardX + CARD_WIDTH && by >= cardY - (isSelected ? 20 : 0) && by <= cardY + CARD_HEIGHT) {
                     if (this.selectedCards.includes(i)) {
                         this.selectedCards = this.selectedCards.filter(idx => idx !== i);
                     } else {
@@ -252,15 +282,15 @@ export class Game {
                 }
             }
 
-            if (this._isButtonClicked(x, y, this.canvas.width / 2 - 130, this.canvas.height - 50, 120, 40)) {
+            if (this._isButtonClicked(bx, by, BASE_WIDTH / 2 - 130, BASE_HEIGHT - 50, 120, 40)) {
                 this.playSelected();
-            } else if (this._isButtonClicked(x, y, this.canvas.width / 2 + 10, this.canvas.height - 50, 120, 40)) {
+            } else if (this._isButtonClicked(bx, by, BASE_WIDTH / 2 + 10, BASE_HEIGHT - 50, 120, 40)) {
                 this.pass();
             }
         }
 
         if (this.state === GAME_STATES.GAME_OVER) {
-            if (this._isButtonClicked(x, y, this.canvas.width / 2 - 60, this.canvas.height / 2 + 30, 120, 40)) {
+            if (this._isButtonClicked(bx, by, BASE_WIDTH / 2 - 60, BASE_HEIGHT / 2 + 30, 120, 40)) {
                 this.restart();
             }
         }
@@ -357,11 +387,21 @@ export class Game {
         }
     }
 
+    _isTeammate(playerIndex1, playerIndex2) {
+        const player1 = this.players[playerIndex1];
+        const player2 = this.players[playerIndex2];
+        return !player1.isLandlord && !player2.isLandlord;
+    }
+
     _findPlayableCards(player) {
         const cards = player.cards.slice().sort((a, b) => a.value - b.value);
         
         if (!this.lastPlay || this.lastPlayPlayer === this.currentIndex) {
             return this._findSmallestPlay(cards);
+        }
+
+        if (this._isTeammate(this.currentIndex, this.lastPlayPlayer)) {
+            return null;
         }
 
         return this._findBeatingPlay(cards, this.lastPlay, this.lastPlayType);
@@ -370,9 +410,28 @@ export class Game {
     _findSmallestPlay(cards) {
         const counts = this._getCardCounts(cards);
         
-        const singles = cards.filter(c => counts[c.value] === 1);
-        if (singles.length > 0) {
-            return [singles[0]];
+        for (const card of cards) {
+            if (counts[card.value] >= 3) {
+                const triple = cards.filter(c => c.value === card.value).slice(0, 3);
+                const kickers = cards.filter(c => c.value !== card.value);
+                
+                if (kickers.length >= 2) {
+                    const kickerCounts = this._getCardCounts(kickers);
+                    for (const kicker of kickers) {
+                        if (kickerCounts[kicker.value] >= 2) {
+                            const pair = kickers.filter(c => c.value === kicker.value).slice(0, 2);
+                            return [...triple, ...pair];
+                        }
+                    }
+                }
+                
+                if (kickers.length >= 1) {
+                    const singleKicker = kickers[0];
+                    return [...triple, singleKicker];
+                }
+                
+                return triple;
+            }
         }
         
         for (const card of cards) {
@@ -382,11 +441,9 @@ export class Game {
             }
         }
         
-        for (const card of cards) {
-            if (counts[card.value] >= 3) {
-                const triple = cards.filter(c => c.value === card.value).slice(0, 3);
-                return triple;
-            }
+        const singles = cards.filter(c => counts[c.value] === 1);
+        if (singles.length > 0) {
+            return [singles[0]];
         }
         
         return [cards[0]];
@@ -455,20 +512,64 @@ export class Game {
             const straightPair = this._findStraightPair(cards, lastType.length, lastValue);
             if (straightPair) return straightPair;
         }
-        
-        for (const card of cards) {
-            if (counts[card.value] === 4) {
-                return cards.filter(c => c.value === card.value);
+
+        if (lastType.type !== CARD_TYPES.BOMB && lastType.type !== CARD_TYPES.ROCKET) {
+            if (this._shouldUseBomb(cards)) {
+                for (const card of cards) {
+                    if (counts[card.value] === 4) {
+                        return cards.filter(c => c.value === card.value);
+                    }
+                }
+                
+                const hasSmallJoker = cards.some(c => c.value === 16);
+                const hasBigJoker = cards.some(c => c.value === 17);
+                if (hasSmallJoker && hasBigJoker) {
+                    return cards.filter(c => c.value === 16 || c.value === 17);
+                }
+            }
+        }
+
+        if (lastType.type === CARD_TYPES.BOMB) {
+            for (const card of cards) {
+                if (card.value > lastValue && counts[card.value] === 4) {
+                    return cards.filter(c => c.value === card.value);
+                }
+            }
+            
+            const hasSmallJoker = cards.some(c => c.value === 16);
+            const hasBigJoker = cards.some(c => c.value === 17);
+            if (hasSmallJoker && hasBigJoker) {
+                return cards.filter(c => c.value === 16 || c.value === 17);
             }
         }
         
-        const hasSmallJoker = cards.some(c => c.value === 16);
-        const hasBigJoker = cards.some(c => c.value === 17);
-        if (hasSmallJoker && hasBigJoker) {
-            return cards.filter(c => c.value === 16 || c.value === 17);
+        return null;
+    }
+
+    _shouldUseBomb(cards) {
+        const currentPlayer = this.players[this.currentIndex];
+        const lastPlayer = this.players[this.lastPlayPlayer];
+        
+        if (currentPlayer.cards.length <= 5) {
+            return true;
         }
         
-        return null;
+        if (this._isTeammate(this.currentIndex, this.lastPlayPlayer)) {
+            return false;
+        }
+        
+        if (lastPlayer.isLandlord && lastPlayer.cards.length <= 3) {
+            return true;
+        }
+        
+        if (!currentPlayer.isLandlord) {
+            const landlord = this.players.find(p => p.isLandlord);
+            if (landlord && landlord.cards.length <= 3) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     _getCardCounts(cards) {
@@ -557,7 +658,7 @@ export class Game {
         this.renderer.drawBackground();
 
         if (this.state === GAME_STATES.WAITING) {
-            this.renderer.drawButton(this.canvas.width / 2 - 60, this.canvas.height / 2 - 20, 120, 40, '开始游戏');
+            this.renderer.drawButton(BASE_WIDTH / 2 - 60, BASE_HEIGHT / 2 - 20, 120, 40, '开始游戏');
             return;
         }
 
@@ -573,11 +674,11 @@ export class Game {
 
         if (this.state === GAME_STATES.BIDDING) {
             if (!this.players[this.currentIndex].isAI) {
-                const buttonY = this.canvas.height / 2 - 20;
+                const buttonY = BASE_HEIGHT / 2 - 20;
                 const buttonWidth = 80;
                 const buttonHeight = 40;
                 const totalWidth = this.highestBid === 0 ? 320 : 240;
-                const startX = this.canvas.width / 2 - totalWidth / 2;
+                const startX = BASE_WIDTH / 2 - totalWidth / 2;
                 
                 if (this.highestBid < 3) {
                     let btnIndex = 0;
@@ -595,16 +696,16 @@ export class Game {
 
         if (this.state === GAME_STATES.PLAYING && !this.players[this.currentIndex].isAI) {
             const player = this.players[0];
-            const startX = this.canvas.width / 2 - (player.cards.length * CARD_OVERLAP) / 2;
-            this.renderer.drawPlayerCards(player.cards, startX, this.canvas.height - CARD_HEIGHT - 80, this.selectedCards);
-            this.renderer.drawButton(this.canvas.width / 2 - 130, this.canvas.height - 50, 120, 40, '出牌');
-            this.renderer.drawButton(this.canvas.width / 2 + 10, this.canvas.height - 50, 120, 40, '不出');
+            const startX = BASE_WIDTH / 2 - (player.cards.length * CARD_OVERLAP) / 2;
+            this.renderer.drawPlayerCards(player.cards, startX, BASE_HEIGHT - CARD_HEIGHT - 80, this.selectedCards);
+            this.renderer.drawButton(BASE_WIDTH / 2 - 130, BASE_HEIGHT - 50, 120, 40, '出牌');
+            this.renderer.drawButton(BASE_WIDTH / 2 + 10, BASE_HEIGHT - 50, 120, 40, '不出');
         }
 
         if (this.state === GAME_STATES.GAME_OVER) {
             const msg = this.winner.isLandlord ? '地主获胜！' : '农民获胜！';
             this.renderer.drawGameOver(msg);
-            this.renderer.drawButton(this.canvas.width / 2 - 60, this.canvas.height / 2 + 30, 120, 40, '再来一局');
+            this.renderer.drawButton(BASE_WIDTH / 2 - 60, BASE_HEIGHT / 2 + 30, 120, 40, '再来一局');
         }
     }
 }
