@@ -1,6 +1,26 @@
-export const CARD_WIDTH = 60;
-export const CARD_HEIGHT = 90;
-export const CARD_OVERLAP = 25;
+// 卡牌基础尺寸（在1000x700分辨率下的尺寸）
+export const BASE_CARD_WIDTH = 60;
+export const BASE_CARD_HEIGHT = 90;
+export const BASE_CARD_OVERLAP = 25;
+
+// 动态计算卡牌尺寸（根据当前canvas大小）
+export function getCardDimensions(canvasWidth, canvasHeight) {
+    // 基于1000x700的基准分辨率计算缩放比例
+    const baseWidth = 1000;
+    const scale = Math.min(canvasWidth / baseWidth, canvasHeight / 700);
+    
+    return {
+        CARD_WIDTH: BASE_CARD_WIDTH * scale,
+        CARD_HEIGHT: BASE_CARD_HEIGHT * scale,
+        CARD_OVERLAP: BASE_CARD_OVERLAP * scale,
+        scale: scale
+    };
+}
+
+// 为了保持兼容性，保留原有导出
+export const CARD_WIDTH = BASE_CARD_WIDTH;
+export const CARD_HEIGHT = BASE_CARD_HEIGHT;
+export const CARD_OVERLAP = BASE_CARD_OVERLAP;
 
 export const SUITS = ['♠', '♥', '♣', '♦'];
 export const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
