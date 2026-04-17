@@ -57,15 +57,15 @@ export class Renderer {
             if (i === 0) {
                 x = this.canvas.width / 2;
                 y = this.canvas.height - 30;
-                labelY = this.canvas.height - CARD_HEIGHT - 110;
+                labelY = this.canvas.height - CARD_HEIGHT - 140;
             } else if (i === 1) {
                 x = 80;
                 y = this.canvas.height / 2;
-                labelY = y - 60;
+                labelY = y - CARD_HEIGHT / 2 - 30;
             } else {
                 x = this.canvas.width - 80;
                 y = this.canvas.height / 2;
-                labelY = y - 60;
+                labelY = y - CARD_HEIGHT / 2 - 30;
             }
 
             this.ctx.fillStyle = currentIndex === i ? '#f1c40f' : COLORS.TEXT;
@@ -79,7 +79,7 @@ export class Renderer {
                 const cardCount = Math.min(player.cards.length, 10);
                 const startX = x - (cardCount * 8) / 2;
                 for (let j = 0; j < cardCount; j++) {
-                    this.drawCard(startX + j * 8, y - CARD_HEIGHT / 2, null, false);
+                    this.drawCard(startX + j * 8, y - CARD_HEIGHT / 2 + 20, null, false);
                 }
             }
         }
